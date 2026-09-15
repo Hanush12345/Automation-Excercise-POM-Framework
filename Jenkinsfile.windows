@@ -1,0 +1,183 @@
+// Windows-native variant of the Jenkinsfile, for a Jenkins controller running
+// directly on a Windows machine with no Docker available.
+//
+// The main Jenkinsfile runs inside mcr.microsoft.com/playwright, which ships the
+// browsers and their system libraries. Here there is no container: the agent's
+// own Node, npm and Playwright browser cache are used, so the browsers must be
+// installed into the Jenkins user's profile (the `Install` stage does this, and
+// it is a no-op once they are cached).
+//
+// Defaults are deliberately lighter than the Docker pipeline's: one browser and
+// one worker, because this runs on a workstation that the user is also using.
+
+pipeline {
+  agent any
+
+  parameters {
+    choice(
+      name: 'BROWSERS',
+      choices: ['chromium', 'chromium,firefox', 'chromium,firefox,webkit', 'firefox', 'webkit', 'edge'],
+      description: 'Which browsers to run, as parallel stages. Each one is a separate browser process on this machine, so raise with care.'
+    )
+    string(
+      name: 'TAGS',
+      defaultValue: '@smoke',
+      description: 'Cucumber tag expression, e.g. "@smoke" or "@cart and not @wip". Leave blank to run every scenario.'
+    )
+    choice(
+      name: 'TEST_ENV',
+      choices: ['qa', 'dev'],
+      description: 'Environment profile from src/config/environments.ts. Also namespaces reports under reports/<env>/.'
+    )
+    string(
+      name: 'RETRIES',
+      defaultValue: '2',
+      description: 'Per-scenario retries. Absorbs flakiness from the live demo site.'
+    )
+    string(
+      name: 'WORKERS',
+      defaultValue: '1',
+      description: 'Parallel cucumber-js workers per browser. Each worker owns its own browser instance.'
+    )
+    booleanParam(
+      name: 'RUN_QUALITY',
+      defaultValue: true,
+      description: 'Run the typecheck + lint gate before the suite.'
+    )
+  }
+
+  options {
+    timeout(time: 90, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
+    timestamps()
+    // The suite drives a shared external site and a shared test account, so
+    // overlapping builds would interfere with each other.
+    disableConcurrentBuilds()
+  }
+
+  triggers {
+    // A Jenkins on a workstation is not reachable from GitHub, so there is no
+    // webhook to receive: poll instead. Builds only start when a commit landed.
+    pollSCM('H/15 * * * *')
+  }
+
+  environment {
+    CI = 'true'
+    HEADLESS = 'true'
+    BASE_URL = 'https://automationexercise.com'
+    TEST_ENV = "${params.TEST_ENV}"
+    RETRIES = "${params.RETRIES}"
+    WORKERS = "${params.WORKERS}"
+  }
+
+  stages {
+    stage('Install') {
+      steps {
+        // Wipe results from any previous build in this workspace, so the post
+        // block cannot re-publish stale junit/allure files from browsers this
+        // build did not run.
+        powershell '''
+          $ErrorActionPreference = 'Stop'
+          foreach ($dir in 'reports','allure-results','test-results') {
+            if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
+          }
+        '''
+
+        // @cucumber/cucumber 13.x hard-exits on Node < 22 without running a
+        // single scenario, which reads as a crash rather than a version problem.
+        powershell '''
+          $ErrorActionPreference = 'Stop'
+          $nodeMajor = [int](node -p "process.versions.node.split('.')[0]")
+          Write-Host "node $(node --version) / npm $(npm --version)"
+          if ($nodeMajor -lt 22) {
+            Write-Host "ERROR: cucumber requires Node 22+, agent provides $(node --version)."
+            exit 1
+          }
+        '''
+
+        // --ignore-scripts skips the postinstall hook, which also pulls msedge.
+        bat 'npm ci --ignore-scripts'
+
+        // Idempotent: downloads only browser builds not already in the Jenkins
+        // user's cache. No --with-deps, which is Linux-only.
+        bat 'npx playwright install chromium firefox webkit'
+        bat 'npx playwright --version'
+      }
+    }
+
+    stage('Quality') {
+      when { expression { return params.RUN_QUALITY } }
+      steps {
+        bat 'npm run typecheck'
+        bat 'npm run lint'
+      }
+    }
+
+    stage('Test') {
+      steps {
+        script {
+          def browsers = params.BROWSERS.split(',').collect { it.trim() }.findAll { it }
+          def tagArgs = params.TAGS?.trim() ? "--tags \"${params.TAGS.trim()}\"" : ''
+
+          parallel browsers.collectEntries { browser ->
+            ["${browser}": {
+              stage(browser) {
+                // Failures against a live third-party site are expected output,
+                // not a broken pipeline: record them, let the other browsers
+                // finish, and let the post block publish the reports.
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                  withCredentials([
+                    usernamePassword(
+                      credentialsId: 'automationexercise-test-user',
+                      usernameVariable: 'EXISTING_USER_EMAIL',
+                      passwordVariable: 'EXISTING_USER_PASSWORD'
+                    ),
+                    string(
+                      credentialsId: 'automationexercise-test-user-name',
+                      variable: 'EXISTING_USER_NAME'
+                    )
+                  ]) {
+                    // withEnv rather than `set BROWSER=x &&`, which on cmd
+                    // captures the space before && into the value.
+                    withEnv(["BROWSER=${browser}"]) {
+                      bat "npx cucumber-js ${tagArgs}"
+                    }
+                  }
+                }
+              }
+            }]
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      junit testResults: 'reports/**/cucumber/**/junit/results.xml',
+            allowEmptyResults: true,
+            skipPublishingChecks: true
+
+      archiveArtifacts artifacts: 'reports/**/cucumber/**/html/report.html, reports/**/cucumber/**/json/results.json',
+                       allowEmptyArchive: true,
+                       fingerprint: false
+
+      // Requires the Allure Jenkins plugin plus an "allure" tool configured.
+      allure includeProperties: false,
+             jdk: '',
+             results: [[path: 'allure-results']]
+
+      archiveArtifacts artifacts: 'test-results/**', allowEmptyArchive: true
+    }
+
+    unstable {
+      echo 'Suite completed with test failures - see the Allure report for the breakdown.'
+    }
+
+    failure {
+      // No emailext here: a workstation Jenkins has no SMTP configured, and an
+      // unconfigured notifier would fail the post block itself.
+      echo 'Pipeline failed outside the tests (install, typecheck, lint or infra).'
+    }
+  }
+}

@@ -17,6 +17,20 @@ export async function saveDownload(download: Download, fileName?: string): Promi
   return target;
 }
 
+/**
+ * Saves an already-fetched response body and returns its absolute path.
+ *
+ * Counterpart to saveDownload for engines where the browser download event is
+ * unavailable (WebKit on Linux never fires one), so the caller can verify the
+ * same artifact without depending on the download machinery.
+ */
+export function saveBuffer(body: Buffer, fileName: string): string {
+  ensureDir(DOWNLOAD_DIR);
+  const target = path.join(DOWNLOAD_DIR, fileName);
+  fs.writeFileSync(target, body);
+  return target;
+}
+
 export function fileExistsAndNotEmpty(filePath: string): boolean {
   return fs.existsSync(filePath) && fs.statSync(filePath).size > 0;
 }

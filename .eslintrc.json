@@ -1,0 +1,21 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
+  "plugins": ["@typescript-eslint", "playwright"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "plugin:playwright/recommended"],
+  "ignorePatterns": ["node_modules", "reports", "test-results", "tests-legacy-playwright"],
+  "rules": {
+    "no-console": "warn",
+    "@typescript-eslint/explicit-function-return-type": "warn",
+    "@typescript-eslint/no-non-null-assertion": "off"
+  },
+  "overrides": [
+    {
+      "files": ["step_definitions/**/*.ts"],
+      "rules": {
+        "playwright/no-standalone-expect": "off"
+      }
+    }
+  ]
+}

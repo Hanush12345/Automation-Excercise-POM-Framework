@@ -1,0 +1,12 @@
+# Normalize to LF in the repo; check out native on Windows. Keeps the
+# Windows dev machines and the ubuntu CI runners from fighting over EOLs.
+* text=auto eol=lf
+
+# Binary assets - never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.webm binary

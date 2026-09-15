@@ -1,0 +1,18 @@
+export const ROUTES = {
+  home: '/',
+  login: '/login',
+  signup: '/signup',
+  products: '/products',
+  productDetails: (id: number): string => `/product_details/${id}`,
+  categoryProducts: (id: number): string => `/category_products/${id}`,
+  brandProducts: (brand: string): string => `/brand_products/${brand}`,
+  cart: '/view_cart',
+  checkout: '/checkout',
+  payment: '/payment',
+  paymentDone: '/payment_done',
+  contactUs: '/contact_us',
+  testCases: '/test_cases',
+  accountCreated: '/account_created',
+  deleteAccount: '/delete_account',
+  logout: '/logout',
+} as const;

@@ -1,0 +1,16 @@
+node_modules/
+reports/
+test-results/
+allure-results/
+allure-report/
+playwright-report/
+blob-report/
+.features-gen/
+.auth/
+downloads/
+.env
+*.log
+.DS_Store
+.idea/
+.vscode/
+.claude/

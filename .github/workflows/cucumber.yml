@@ -1,0 +1,65 @@
+name: Cucumber Regression
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '30 1 * * *' # nightly regression
+
+jobs:
+  # Fast static gate: no browsers needed, so it finishes in well under a minute
+  # and surfaces type/lint breakage without waiting on the full browser matrix.
+  quality:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # --ignore-scripts skips the `postinstall` hook, which installs all four
+      # browsers (including msedge, unavailable on ubuntu runners). Each matrix
+      # leg installs only the one browser it needs, in the next step.
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Run cucumber scenarios (${{ matrix.browser }})
+        run: npx cucumber-js
+        env:
+          BASE_URL: https://automationexercise.com
+          HEADLESS: true
+          CI: true
+          BROWSER: ${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cucumber-report-${{ matrix.browser }}
+          path: reports/cucumber/${{ matrix.browser }}/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-results-cucumber-${{ matrix.browser }}
+          path: allure-results/cucumber/
+          retention-days: 14

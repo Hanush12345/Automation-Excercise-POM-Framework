@@ -163,9 +163,13 @@ pipeline {
                        fingerprint: false
 
       // Requires the Allure Jenkins plugin plus an "allure" tool configured.
+      // The path must be the exact results dir: `allure generate` does not
+      // recurse, and cucumber.js namespaces its output by TEST_ENV
+      // (allure-results/<env>/cucumber). Pointing at `allure-results` produces
+      // a report with zero test cases.
       allure includeProperties: false,
              jdk: '',
-             results: [[path: 'allure-results']]
+             results: [[path: "allure-results/${params.TEST_ENV}/cucumber"]]
 
       archiveArtifacts artifacts: 'test-results/**', allowEmptyArchive: true
     }

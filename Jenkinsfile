@@ -175,9 +175,14 @@ pipeline {
 
       // Requires the Allure Jenkins plugin plus an "allure" tool configured.
       // Merges every browser's results into one report with trend history.
+      //
+      // The path must be the exact results dir: `allure generate` does not
+      // recurse, and cucumber.js namespaces its output by TEST_ENV
+      // (allure-results/<env>/cucumber). Pointing at `allure-results` produces
+      // a report with zero test cases.
       allure includeProperties: false,
              jdk: '',
-             results: [[path: 'allure-results']]
+             results: [[path: "allure-results/${params.TEST_ENV}/cucumber"]]
 
       // Screenshots/videos are attached inline to the cucumber HTML report by
       // support/hooks.ts, so only the raw trace/video scratch dir is kept here.

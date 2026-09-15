@@ -155,9 +155,11 @@ missing. Chromium exhausts Docker's default 64MB `/dev/shm`.
 `pwuser` cannot write to a Jenkins-owned workspace.
 
 **Allure report empty** — the Allure tool is not configured (step 2), or the
-run set `TEST_ENV`, which moves results to `allure-results/<env>/`. The
-`results: [[path: 'allure-results']]` entry covers both, since the plugin
-recurses.
+`results` path does not name the results directory exactly. `allure generate`
+does **not** recurse, and cucumber.js namespaces its output by `TEST_ENV`
+(`allure-results/<env>/cucumber`), so `results: [[path: 'allure-results']]`
+generates a report with zero test cases. Both pipelines use
+`results: [[path: "allure-results/${params.TEST_ENV}/cucumber"]]`.
 
 **Login/checkout scenarios fail everywhere** — credentials missing or wrong, so
 `env.ts` fell back to its non-existent placeholder account. See step 3.

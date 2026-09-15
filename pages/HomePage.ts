@@ -60,8 +60,13 @@ export class HomePage extends BasePage {
   }
 
   async clickScrollUpArrow(): Promise<void> {
+    // Same reasoning as BasePage.scrollToTop: the arrow triggers a smooth
+    // scroll whose duration varies by engine, so wait for the position rather
+    // than a fixed 1s that Chromium happened to satisfy and Firefox did not.
     await this.scrollUpArrow.click();
-    await this.page.waitForTimeout(1_000);
+    await this.page
+      .waitForFunction(() => window.scrollY === 0, undefined, { timeout: 10_000, polling: 100 })
+      .catch(() => undefined);
   }
 
   async assertFooterSubscriptionInView(): Promise<void> {

@@ -71,8 +71,14 @@ export class PaymentPage extends BasePage {
   // --- TC24: Invoice download ---
   async downloadInvoice(): Promise<string> {
     await expect(this.downloadInvoiceButton).toBeVisible();
-    const downloadPromise: Promise<Download> = this.page.waitForEvent('download');
-    await this.downloadInvoiceButton.click();
+    // Scroll into view before clicking, the way safeClick does elsewhere: an ad
+    // banner overlaying the button swallows the click, and the failure then
+    // surfaces confusingly as a download-event timeout rather than a click
+    // error. WebKit is given longer than the 30s default because it was the
+    // only engine to time out here in CI while Chromium and Firefox passed.
+    await this.downloadInvoiceButton.scrollIntoViewIfNeeded();
+    const downloadPromise: Promise<Download> = this.page.waitForEvent('download', { timeout: 60_000 });
+    await this.downloadInvoiceButton.click({ timeout: 15_000 });
     const download = await downloadPromise;
     return saveDownload(download);
   }

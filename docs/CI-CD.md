@@ -136,6 +136,15 @@ and configure the GitHub Branch Source to report statuses back.
 
 ## Troubleshooting
 
+**"Cucumber can only run on Node.js versions 22 || 24 || >=26"** — the agent's
+Node is too old. `@cucumber/cucumber` 13.x hard-exits before running a single
+scenario, so the job fails in seconds and the output looks like a crash rather
+than a version problem. `package.json` declares `engines.node >= 22`, the
+Actions workflow pins `node-version: 22`, and the `Install` stage here checks
+the version explicitly. **The Playwright image's bundled Node version can
+change between releases**, so this can regress from a routine image-tag bump —
+which is exactly why the guard fails loudly instead of letting the suite start.
+
 **Chromium crashes mid-run, or "Target closed"** — the `--ipc=host` arg is
 missing. Chromium exhausts Docker's default 64MB `/dev/shm`.
 

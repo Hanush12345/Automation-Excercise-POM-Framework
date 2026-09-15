@@ -93,6 +93,21 @@ pipeline {
         // browsers that this build did not actually run.
         sh 'rm -rf reports allure-results test-results'
 
+        // @cucumber/cucumber 13.x declares engines "22 || 24 || >=26" and
+        // hard-exits on anything older, with no scenarios run. Fail here with a
+        // clear message instead of 40 lines into the suite: the Playwright
+        // image's bundled Node version changes between releases, so this can
+        // regress purely from bumping the image tag.
+        sh '''
+          NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")
+          echo "node $(node --version) / npm $(npm --version)"
+          if [ "$NODE_MAJOR" -lt 22 ]; then
+            echo "ERROR: cucumber requires Node 22+, image provides $(node --version)."
+            echo "Either use a Playwright image built on Node 22+, or install it in this stage."
+            exit 1
+          fi
+        '''
+
         // --ignore-scripts skips the postinstall hook, which would download all
         // four browsers (including msedge, which has no Linux build). The
         // Playwright image already ships the three we test.

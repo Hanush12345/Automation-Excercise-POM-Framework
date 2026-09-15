@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Playwright + TypeScript Page Object Model framework for https://automationexercise.com covering all 26 documented test cases",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "postinstall": "playwright install --with-deps chromium firefox webkit msedge",
     "test": "cucumber-js",

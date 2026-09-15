@@ -23,8 +23,10 @@ npx cucumber-js
 
 ```
 D:\Automation-Exercise-POM-Framework\
-├── .github/workflows/cucumber.yml     # CI: nightly + PR regression (chromium)
+├── .github/workflows/cucumber.yml     # CI: quality gate + cross-browser regression (push/PR/nightly)
+├── Jenkinsfile                        # CI: same suite on Jenkins — parameterised, Allure trends
 ├── docs/
+│   ├── CI-CD.md                       # pipeline setup: plugins, credentials, branch protection
 │   └── TRACEABILITY-MATRIX.md         # RTM: requirement -> spec -> page object
 ├── resources/
 │   └── upload-sample.txt              # attachment fixture for TC06
